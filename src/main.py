@@ -47,6 +47,8 @@ parser.add_argument(
         "ChatGPT",
         "GPT4",
         "Gemini",
+        "Qwen",
+        "QwenCoder"
     ]
 )
 parser.add_argument(

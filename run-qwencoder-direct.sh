@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --job-name=trip_planner
-#SBATCH --time=10:00:00
+#SBATCH --job-name=qwencoder_direct
+#SBATCH --time=23:00:00
 #SBATCH --mem=64G
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1
@@ -11,19 +11,19 @@
 #SBATCH --mail-user=endavinci808@gmail.com
 #SBATCH --mail-type=ALL
 
-source ~/.bashrc
+source /opt/anaconda3/etc/profile.d/conda.sh
 conda activate mapcoder
 
-mkdir -p $OUTPUT_DIR
+mkdir -p outputs
 mkdir -p logs
 
 echo "Job ID: $SLURM_JOB_ID"
 echo "Running on node: $SLURMD_NODENAME"
 echo "Date: $(date)"
 
-export MODEL="Qwen"
+export MODEL="QwenCoder"
 export DATASET="HumanEval"
-export STRATEGY="MapCoder"
+export STRATEGY="Direct"
 
 srun python src/main.py \
     --model $MODEL \
