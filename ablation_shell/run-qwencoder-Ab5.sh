@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=qwen_mapcoder
+#SBATCH --job-name=qc_ab5
 #SBATCH --time=23:00:00
 #SBATCH --mem=64G
 #SBATCH --cpus-per-task=4
@@ -21,9 +21,9 @@ echo "Job ID: $SLURM_JOB_ID"
 echo "Running on node: $SLURMD_NODENAME"
 echo "Date: $(date)"
 
-export MODEL="Qwen"
+export MODEL="QwenCoder"
 export DATASET="HumanEval"
-export STRATEGY="MapCoder"
+export STRATEGY="MapCoder_Ab5"
 export PASS_AT_K="1"
 export TEMPERATURE="0"
 

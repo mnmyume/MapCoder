@@ -37,6 +37,12 @@ parser.add_argument(
         "SelfPlanning",
         "Analogical",
         "MapCoder",
+        "MapCoder_Ab1",
+        "MapCoder_Ab2",
+        "MapCoder_Ab3",
+        "MapCoder_Ab4",
+        "MapCoder_Ab5",
+        "MapCoder_Ab6"
     ]
 )
 parser.add_argument(

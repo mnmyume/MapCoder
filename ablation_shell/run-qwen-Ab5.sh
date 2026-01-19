@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=qwen_mapcoder
+#SBATCH --job-name=qwen_ab5
 #SBATCH --time=23:00:00
 #SBATCH --mem=64G
 #SBATCH --cpus-per-task=4
@@ -23,7 +23,7 @@ echo "Date: $(date)"
 
 export MODEL="Qwen"
 export DATASET="HumanEval"
-export STRATEGY="MapCoder"
+export STRATEGY="MapCoder_Ab5"
 export PASS_AT_K="1"
 export TEMPERATURE="0"
 

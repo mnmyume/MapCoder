@@ -24,8 +24,12 @@ echo "Date: $(date)"
 export MODEL="QwenCoder"
 export DATASET="HumanEval"
 export STRATEGY="MapCoder"
+export PASS_AT_K="1"
+export TEMPERATURE="0"
 
 srun python src/main.py \
     --model $MODEL \
     --dataset $DATASET \
-    --strategy $STRATEGY
+    --strategy $STRATEGY \
+    --pass_at_k $PASS_AT_K \
+    --temperature $TEMPERATURE
