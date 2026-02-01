@@ -4,7 +4,7 @@ __pycache__
 .vscode
 *workspace*
 /.idea/
-
+ExecEval/
 samples/*
 desktop.ini
 /logs/

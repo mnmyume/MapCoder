@@ -12,7 +12,6 @@ import xml.etree.ElementTree as ET
 from .Base import BaseStrategy
 from .MapCoder import MapCoder
 from models.Base import BaseModel
-
 from datasets.Dataset import Dataset
 from datasets.APPSDataset import APPSDataset
 from datasets.MBPPDataset import MBPPDataset

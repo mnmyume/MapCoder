@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-
+import os
 import requests
 from .exec_outcome import ExecOutcome
 
@@ -47,7 +47,14 @@ class EmptySourceCodeError(EmptyValueError):
 class APICommunication:
     _session: requests.Session
 
-    def __init__(self, server_url: str = "http://localhost:5000"):
+    def __init__(self, server_url: str = None):  #  "http://192.168.152.10:5000" "http://localhost:5000"
+        if server_url is None:
+            self.server_url = os.environ.get("EXEC_SERVER_URL", "http://localhost:5000")
+        else:
+            self.server_url = server_url
+
+        print(f"Connecting to execution server at: {self.server_url}")
+
         self._session = requests.Session()
         self.execute_code_url = f"{server_url}/api/execute_code"
         self.get_runtimes_url = f"{server_url}/api/all_runtimes"

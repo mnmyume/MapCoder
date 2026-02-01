@@ -78,7 +78,7 @@ class Qwen(BaseModel):
             generated_ids = self.model.generate(
                 model_inputs.input_ids,
                 attention_mask=model_inputs.attention_mask,
-                max_new_tokens=4096,
+                max_new_tokens=16384,
                 temperature=0.7,
                 top_p=0.9,
                 do_sample=True,
