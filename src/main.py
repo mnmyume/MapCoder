@@ -60,7 +60,7 @@ parser.add_argument(
 parser.add_argument(
     "--temperature", 
     type=float, 
-    default=0
+    default=0.7
 )
 parser.add_argument(
     "--pass_at_k", 
@@ -96,6 +96,7 @@ RUN_NAME = f"{MODEL_NAME}-{STRATEGY}-{DATASET}-{LANGUAGE}-{TEMPERATURE}-{PASS_AT
 RESULTS_PATH = f"./outputs/{RUN_NAME}.jsonl"
 
 print(f"#########################\nRunning start {RUN_NAME}, Time: {datetime.now()}\n##########################\n")
+
 
 strategy = PromptingFactory.get_prompting_class(STRATEGY)(
     model=ModelFactory.get_model_class(MODEL_NAME)(temperature=TEMPERATURE),

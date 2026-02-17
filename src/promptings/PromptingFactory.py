@@ -4,6 +4,7 @@ from promptings.Analogical import AnalogicalStrategy
 from promptings.SelfPlanning import SelfPlanningStrategy
 
 from promptings.MapCoder import MapCoder as MapCoder
+from promptings.MapCoderMAS import MapCoderMAS as MapCoderMAS
 from promptings.MapCoder_Ablation import MapCoder_wo_PD, MapCoder_wo_RD, MapCoder_wo_RP, MapCoder_wo_D, MapCoder_wo_P, MapCoder_wo_R
 
 
@@ -14,6 +15,8 @@ class PromptingFactory:
             return CoTStrategy
         elif prompting_name == "MapCoder":
             return MapCoder
+        elif prompting_name == "MapCoderMAS":
+            return MapCoderMAS
         elif prompting_name == "MapCoder_Ab1":
             return MapCoder_wo_RP
         elif prompting_name == "MapCoder_Ab2":

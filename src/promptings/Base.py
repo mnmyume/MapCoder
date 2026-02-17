@@ -13,11 +13,11 @@ from utils.parse import parse_response
 class BaseStrategy(object):
     def __init__(
         self,
-        model: BaseModel,
         data: Dataset,
         language: str,
         pass_at_k: int,
         results: Results,
+        model: BaseModel | None = None,
         verbose: bool = True,
     ):
         self.model = model
@@ -36,6 +36,8 @@ class BaseStrategy(object):
     def run(self):
         num_items = len(self.data)
         num_success = 0
+        accuracy = 0
+        cost = 0
 
         for i, item in enumerate(self.data):
             print("", flush=True, end="")
@@ -86,12 +88,13 @@ class BaseStrategy(object):
             while cur_pass < self.pass_at_k and not is_solved:
                 # for _ in range(10):
                 #     try:
-                response, prompt_tokens, completion_tokens = self.run_single_pass(
+                response, prompt_tokens, completion_tokens, price = self.run_single_pass(
                     item)
                 #     break
                 # except Exception as e:
                 #     time.sleep(5)
                 #     pass
+                cost += price
 
                 if hasattr(self, "parse_code"):
                     cur_imp = self.parse_code(response)
@@ -116,6 +119,8 @@ class BaseStrategy(object):
             if is_solved:
                 num_success += 1
 
+            accuracy = round(num_success/(i+1)*100, 2)
+
             item["is_solved"] = is_solved
             item["language"] = self.language
             item["task_id"] = item[self.data.id_key]
@@ -128,6 +133,8 @@ class BaseStrategy(object):
 
             if self.verbose:
                 print(
-                    f'completed {i+1}/{num_items}, Solved: {self.results[i]["is_solved"]}, number of success = {num_success}/{i+1}, acc = {round(num_success/(i+1)*100, 2)}')
+                    f'completed {i+1}/{num_items}, Solved: {self.results[i]["is_solved"]}, number of success = {num_success}/{i+1}, acc = {accuracy}')
 
             # break
+
+        return accuracy, cost

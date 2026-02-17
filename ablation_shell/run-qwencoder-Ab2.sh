@@ -22,7 +22,7 @@ echo "Running on node: $SLURMD_NODENAME"
 echo "Date: $(date)"
 
 export MODEL="QwenCoder"
-export DATASET="HumanEval"
+export DATASET="MBPP"
 export STRATEGY="MapCoder_Ab2"
 export PASS_AT_K="1"
 export TEMPERATURE="0"

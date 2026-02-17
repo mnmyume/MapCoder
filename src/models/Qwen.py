@@ -1,10 +1,22 @@
+import os
+
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from .Base import BaseModel
 
 
 class Qwen(BaseModel):
-    def __init__(self, model_name_or_path="Qwen/Qwen3-30B-A3B-Instruct-2507", device=None, **kwargs):
+    def __init__(
+            self,
+            model_name_or_path="Qwen/Qwen3-30B-A3B-Instruct-2507",
+            device=None,
+            temperature=0.0,
+            top_p=0.9,
+            input_price=0.2,
+            output_price=0.8,
+            **kwargs):
         """
         Initialize Qwen model。
 
@@ -14,19 +26,21 @@ class Qwen(BaseModel):
         """
         super().__init__(**kwargs)
 
-        # auto detect device
-        if device:
-            self.device = device
-        else:
-            if torch.cuda.is_available():
-                self.device = "cuda"
-            elif torch.backends.mps.is_available():
-                self.device = "mps"
-            else:
-                self.device = "cpu"
-
         print(f"Loading Qwen model from {model_name_or_path} to {self.device}...")
 
+        # model params
+        self.temperature = temperature
+        self.top_p = top_p
+        self.input_price = input_price
+        self.output_price = output_price
+
+        # # load 4-bit quantization
+        # quantization_config = BitsAndBytesConfig(
+        #     load_in_4bit=True,
+        #     bnb_4bit_quant_type="nf4",
+        #     bnb_4bit_use_double_quant=True,
+        #     bnb_4bit_compute_dtype=torch.float16
+        # )
         # load 8-bit quantization
         quantization_config = BitsAndBytesConfig(
             load_in_8bit=True,
@@ -41,10 +55,9 @@ class Qwen(BaseModel):
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
         # load model
-        # if low gpu memory: load_in_4bit=True (bitsandbytes needed)
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name_or_path,
-            device_map=self.device,
+            device_map=self.device_map,
             trust_remote_code=True,
             quantization_config=quantization_config,
             torch_dtype="auto"
@@ -79,9 +92,9 @@ class Qwen(BaseModel):
                 model_inputs.input_ids,
                 attention_mask=model_inputs.attention_mask,
                 max_new_tokens=16384,
-                temperature=0.7,
-                top_p=0.9,
-                do_sample=True,
+                temperature=self.temperature,
+                top_p=self.top_p,
+                do_sample=False,
                 pad_token_id=self.tokenizer.pad_token_id
             )
 
@@ -97,12 +110,26 @@ class Qwen(BaseModel):
         prompt_tokens = input_length
         completion_tokens = len(generated_ids[0])
 
-        return response, prompt_tokens, completion_tokens
+        # calculate price
+        price = prompt_tokens*self.input_price + completion_tokens*self.output_price
+
+        return response, prompt_tokens, completion_tokens, price
 
 class QwenCoder(Qwen):
-    def __init__(self, model_name_or_path="Qwen/Qwen3-Coder-30B-A3B-Instruct", device=None, **kwargs):
+    def __init__(
+            self,
+            model_name_or_path="Qwen/Qwen3-Coder-30B-A3B-Instruct",
+            device=None,
+            input_price=0.45,
+            output_price=2.25,
+            **kwargs):
         """
         Initialize QwenCoder model.
         Inherits everything from Qwen, just changes the default model to the Coder version.
         """
-        super().__init__(model_name_or_path=model_name_or_path, device=device, **kwargs)
+        super().__init__(
+            model_name_or_path=model_name_or_path,
+            device=device,
+            input_price=input_price,
+            output_price=output_price,
+            **kwargs)

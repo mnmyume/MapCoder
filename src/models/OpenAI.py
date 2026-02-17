@@ -139,7 +139,9 @@ class OpenAIModel(OpenAIBaseModel):
         top_p=0.95,
         frequency_penalty=0,
         presence_penalty=0,
-    ):
+        input_price=0,
+        output_price=0,
+        **kwargs):
         super().__init__(
             api_type=api_type,
             api_base=api_base,
@@ -150,7 +152,7 @@ class OpenAIModel(OpenAIBaseModel):
             temperature=temperature,
             top_p=top_p,
             frequency_penalty=frequency_penalty,
-            presence_penalty=presence_penalty,
+            presence_penalty=presence_penalty
         )
     
     def summarize_response(self, response):
@@ -193,16 +195,41 @@ class OpenAIModel(OpenAIBaseModel):
             **self.model_params
         )
 
-        return response.choices[0].message.content, response.usage.prompt_tokens, response.usage.completion_tokens
+        # calculate token number
+        prompt_tokens = response.usage.prompt_tokens
+        completion_tokens = response.usage.completion_tokens
+
+        # calculate price
+        price = prompt_tokens*self.input_price + completion_tokens*self.output_price
+
+        return response.choices[0].message.content, prompt_tokens, completion_tokens, price
 
 
 class GPT4(OpenAIModel):
+    def __init__(
+            self,
+            input_price=2.0,
+            output_price=8.0,
+            **kwargs):
+        super().__init__(
+            input_price=input_price,
+            output_price=output_price,
+            **kwargs)
     def prompt(self, processed_input: list[dict]):
-        self.model_params["model"] = "gpt-4-1106-preview"
+        self.model_params["model"] = "gpt-4.1-2025-04-14"
         return super().prompt(processed_input)
 
 
 class ChatGPT(OpenAIModel):
+    def __init__(
+            self,
+            input_price=1.25,
+            output_price=10.0,
+            **kwargs):
+        super().__init__(
+            input_price=input_price,
+            output_price=output_price,
+            **kwargs)
     def prompt(self, processed_input: list[dict]):
-        self.model_params["model"] = "GPT-35-TURBO-1106"
+        self.model_params["model"] = "gpt-5-2025-08-07"
         return super().prompt(processed_input)

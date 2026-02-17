@@ -2,7 +2,7 @@
 #SBATCH --job-name=qwen_mapcoder
 #SBATCH --time=23:00:00
 #SBATCH --mem=64G
-#SBATCH --cpus-per-task=32
+#SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1
 
 #SBATCH -o logs/JOB%j.out
@@ -22,7 +22,7 @@ echo "Running on node: $SLURMD_NODENAME"
 echo "Date: $(date)"
 
 export MODEL="Qwen"
-export DATASET="CC"
+export DATASET="MBPP"
 export STRATEGY="MapCoder"
 export PASS_AT_K="1"
 export TEMPERATURE="0"
