@@ -16,8 +16,7 @@ from utils.parse import parse_response
 CANDIDATE_MODELS = [
     "Qwen",
     "QwenCoder",
-    "ChatGPT",
-    "GeminiPro"
+    "ChatGPT"
 ]
 
 ROLES = ["Retrieval", "Planning", "Coding", "Debugging"]

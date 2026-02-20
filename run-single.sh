@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=qc_direct
+#SBATCH --job-name=qwen_direct
 #SBATCH --time=23:00:00
-#SBATCH --mem=64G
+#SBATCH --mem=128G
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1
 
@@ -21,8 +21,8 @@ echo "Job ID: $SLURM_JOB_ID"
 echo "Running on node: $SLURMD_NODENAME"
 echo "Date: $(date)"
 
-export MODEL="QwenCoder"
-export DATASET="MBPP"
+export MODEL="Qwen"
+export DATASET="HumanEvalSubset"
 export STRATEGY="Direct"
 export PASS_AT_K="1"
 export TEMPERATURE="0"

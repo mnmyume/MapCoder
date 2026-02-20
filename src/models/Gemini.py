@@ -22,29 +22,22 @@ class Gemini(BaseModel):
         self.output_price = output_price
 
     def prompt(self, processed_input):
-        for i in range(10):
-            try:
-                response = self.client.models.generate_content(
-                    model=self.model_name,
-                    contents=processed_input[0]['content'],
-                    config=types.GenerateContentConfig(
-                        temperature=self.temperature,
-                        candidate_count=1,
-                    )
-                )
+        response = self.client.models.generate_content(
+            model=self.model_name,
+            contents=processed_input[0]['content'],
+            config=types.GenerateContentConfig(
+                temperature=self.temperature,
+                candidate_count=1,
+            )
+        )
 
-                usage = response.usage_metadata
-                prompt_tokens = usage.prompt_token_count
-                completion_tokens = usage.total_token_count - usage.prompt_token_count
+        usage = response.usage_metadata
+        prompt_tokens = usage.prompt_token_count
+        completion_tokens = usage.total_token_count - usage.prompt_token_count
 
-                price = prompt_tokens*self.input_price + completion_tokens*self.output_price
+        price = prompt_tokens * self.input_price + completion_tokens * self.output_price
 
-                return response.text, prompt_tokens, completion_tokens, price
-
-            except Exception as e:
-                time.sleep(2)
-
-        return "", 0, 0
+        return response.text, prompt_tokens, completion_tokens, price
 
 
 class GeminiPro(Gemini):

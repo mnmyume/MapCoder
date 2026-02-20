@@ -2,6 +2,7 @@ import os
 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
+import gc
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from .Base import BaseModel
@@ -60,7 +61,7 @@ class Qwen(BaseModel):
             device_map=self.device_map,
             trust_remote_code=True,
             quantization_config=quantization_config,
-            torch_dtype="auto"
+            torch_dtype="auto",
         ).eval()
 
     def prompt(self, processed_input: list[dict]):

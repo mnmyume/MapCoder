@@ -20,8 +20,10 @@ parser.add_argument(
     type=str, 
     default="HumanEval", 
     choices=[
-        "HumanEval", 
-        "MBPP", 
+        "HumanEval",
+        "HumanEvalSubset",
+        "MBPP",
+        "MBPPSubset",
         "APPS",
         "xCodeEval", 
         "CC", 

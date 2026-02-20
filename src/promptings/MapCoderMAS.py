@@ -45,8 +45,8 @@ class MapCoderMAS(MapCoder):
         planning_model: BaseModel,
         coding_model: BaseModel,
         debugging_model: BaseModel,
-        k: int = 2,
-        t: int = 2,
+        k: int = 1,
+        t: int = 1,
         *args,
         **kwargs
     ):
@@ -59,6 +59,23 @@ class MapCoderMAS(MapCoder):
         self.planning_model = planning_model
         self.coding_model = coding_model
         self.debugging_model = debugging_model
+
+    def parse_xml(self, response: str) -> dict:
+        if '```xml' in response:
+            response = response.split('```xml')[-1].split('```')[0]
+        elif '```' in response:
+            response = response.split('```')[-1].split('```')[0]
+
+        response = response.strip()
+
+        try:
+            root = ET.fromstring(response)
+        except:
+            try:
+                root = ET.fromstring('<root>\n' + response + '\n</root>')
+            except:
+                root = ET.fromstring('<root>\n' + response)
+        return self.xml_to_dict(root)
 
     def agent_chat(self, agent_model:BaseModel, processed_input: List[dict]) -> (str, int, int):
         return agent_model.prompt(processed_input=processed_input)
@@ -144,8 +161,13 @@ Your response must follow the following xml format-
         sample_io_prompt = f"## Sample Test cases: \n{self.get_sample_io_str(item['sample_io'])}\n"
         # if type(self.data) != MBPPDataset and type(self.data) != XCodeDataset else ""
 
+        # fix
+        problem_data = response["problem"]
+        if isinstance(problem_data, dict):
+            problem_data = [problem_data]
+
         plannings = []
-        for example_no, example in enumerate(response["problem"], start=1):
+        for example_no, example in enumerate(problem_data, start=1):
             example_problem = example["description"]
             example_planning = example["planning"]
 
@@ -178,48 +200,45 @@ Your response must follow the following xml format-
             print("Response from our problem planning: ")
             print(planning, flush=True)
 
-            input_for_planning_verification = [
-                {
-                    "role": "user",
-                    "content": f"Given a competitive programming problem and a plan to solve the problem in {self.language}, tell whether the plan is correct to solve this problem.\n\n# Problem:\n{self.data.get_prompt(item)}\n# Planning:\n{planning}\n\n----------------\nImportant: Your response must follow the following xml format-```\n<root>\n<explanation> Discuss whether the given competitive programming problem is solvable by using the above mentioned planning.</explanation>\n<confidence> Confidence score regarding the solvability of the problem. Must be an integer between 0 and 100. </confidence>\n</root>\n```"
-                }
-            ]
-
-            print("Input for planning verification: ")
-            print(input_for_planning_verification[0]['content'], flush=True)
-
-            verification_res, pr_tok_1, com_tok_1, price_1 = self.agent_chat(
-                self.planning_model,
-                input_for_planning_verification
-            )
-            item['api_calls'] += 1
-            # time.sleep(1)
-            pr_tok += pr_tok_1
-            com_tok += com_tok_1
-            price += price_1
-
-            verification_res = self.replace_tag(
-                verification_res, 'explanation')
-            verification_res = self.replace_tag(verification_res, 'confidence')
-
-            print("***********DEBUG*************")
-            print(verification_res)
-
-            verification_res = self.parse_xml(verification_res)
-
-            # fix
-            if 'root' in verification_res:
-                verification_res = verification_res['root']
-
-            verification_res['confidence'] = int(
-                str(verification_res['confidence']).strip())
-
-            print("Response from planning verification: ")
-            print(verification_res, flush=True)
+            # input_for_planning_verification = [
+            #     {
+            #         "role": "user",
+            #         "content": f"Given a competitive programming problem and a plan to solve the problem in {self.language}, tell whether the plan is correct to solve this problem.\n\n# Problem:\n{self.data.get_prompt(item)}\n# Planning:\n{planning}\n\n----------------\nImportant: Your response must follow the following xml format-```\n<root>\n<explanation> Discuss whether the given competitive programming problem is solvable by using the above mentioned planning.</explanation>\n<confidence> Confidence score regarding the solvability of the problem. Must be an integer between 0 and 100. </confidence>\n</root>\n```"
+            #     }
+            # ]
+            #
+            # print("Input for planning verification: ")
+            # print(input_for_planning_verification[0]['content'], flush=True)
+            #
+            # verification_res, pr_tok_1, com_tok_1, price_1 = self.agent_chat(
+            #     self.planning_model,
+            #     input_for_planning_verification
+            # )
+            # item['api_calls'] += 1
+            # # time.sleep(1)
+            # pr_tok += pr_tok_1
+            # com_tok += com_tok_1
+            # price += price_1
+            #
+            # verification_res = self.replace_tag(
+            #     verification_res, 'explanation')
+            # verification_res = self.replace_tag(verification_res, 'confidence')
+            #
+            # verification_res = self.parse_xml(verification_res)
+            #
+            # # fix
+            # if 'root' in verification_res:
+            #     verification_res = verification_res['root']
+            #
+            # verification_res['confidence'] = int(
+            #     str(verification_res['confidence']).strip())
+            #
+            # print("Response from planning verification: ")
+            # print(verification_res, flush=True)
 
             plannings.append((
                 planning,
-                verification_res['confidence'],
+                100, # verification_res['confidence'],
                 example
             ))
 

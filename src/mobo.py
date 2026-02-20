@@ -25,6 +25,7 @@ if __name__ == "__main__":
         default="MBPPSubset",
         choices=[
             "HumanEval",
+            "HumanEvalSubset",
             "MBPP",
             "MBPPSubset",
             "APPS",
@@ -78,7 +79,7 @@ if __name__ == "__main__":
     PASS_AT_K = args.pass_at_k
     LANGUAGE = args.language
 
-    TOTAL_TRIALS = 30
+    TOTAL_TRIALS = 20
     DB_URL = "sqlite:///db.sqlite3"
     STUDY_NAME = "mobo_1"
 
@@ -101,25 +102,13 @@ if __name__ == "__main__":
         load_if_exists=True
     )
 
-    trials_to_fail = [t for t in study.trials if t.state == optuna.trial.TrialState.RUNNING]
-    if len(trials_to_fail) > 0:
-        print(f"Cleaning up {len(trials_to_fail)} interrupted trials...")
+    trials_to_run = TOTAL_TRIALS - len(study.trials)
 
-    completed_trials = len([t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE])
-    remaining_trials = TOTAL_TRIALS - completed_trials
-
-    print(f"Study loaded. Completed: {completed_trials}, Remaining: {remaining_trials}")
-
-    if remaining_trials > 0:
-        print("Resuming optimization loop...")
-        study.optimize(optimizer.objective, n_trials=remaining_trials)
+    if trials_to_run > 0:
+        print(f"Resuming study. Running {trials_to_run} more trials to reach {TOTAL_TRIALS} total.")
+        study.optimize(optimizer.objective, n_trials=trials_to_run)
     else:
-        print("Optimization already finished!")
-
-    print("Start optimization loop...")
-
-    # Loop: choose configuration -> run benchmark -> update -> next configuration
-    study.optimize(optimizer.objective, n_trials=20)
+        print("Study is already complete!")
 
     # --- Output ---
     print("\nOptimization ended, Pareto Front:")

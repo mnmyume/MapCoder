@@ -4,6 +4,7 @@ from datasets.MBPPSubset import MBPPSubset
 from datasets.APPSDataset import APPSDataset
 from datasets.XCodeDataset import XCodeDataset
 from datasets.HumanEvalDataset import HumanDataset
+from datasets.HumanEvalSubset import HumanEvalSubset
 from datasets.CodeContestDataset import CodeContestDataset
 
 
@@ -20,6 +21,8 @@ class DatasetFactory:
             return XCodeDataset
         elif dataset_name == "HumanEval":
             return HumanDataset
+        elif dataset_name == "HumanEvalSubset":
+            return HumanEvalSubset
         elif dataset_name == "Human":
             return HumanDataset
         elif dataset_name == "CC":

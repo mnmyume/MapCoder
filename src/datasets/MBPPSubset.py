@@ -6,7 +6,10 @@ import random
 
 
 class MBPPSubset(MBPPDataset):
-    def __init__(self, path: str = MBPP_DATA_PATH, sample_size: int = 30):
+    def __init__(
+            self,
+            path: str = MBPP_DATA_PATH,
+            sample_size: int = 30):
         super().__init__(path)
 
         if isinstance(self.data, list):
