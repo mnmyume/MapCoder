@@ -154,6 +154,8 @@ class OpenAIModel(OpenAIBaseModel):
             frequency_penalty=frequency_penalty,
             presence_penalty=presence_penalty
         )
+        self.input_price = input_price
+        self.output_price = output_price
     
     def summarize_response(self, response):
         """Returns the first reply from the "assistant", if available"""
@@ -188,12 +190,25 @@ class OpenAIModel(OpenAIBaseModel):
             Response from the openai python library
 
         """
-        self.model_params["max_tokens"] = 4096
-
-        response = self.openai.chat.completions.create(
-            messages=processed_input,
-            **self.model_params
-        )
+        if "gpt-5" in self.model_params["model"] or "o1" in self.model_params["model"]:
+            params = self.model_params.copy()
+            params["max_completion_tokens"] = 4096
+            params.pop("max_tokens", None)
+            # Newer models have strict requirements for temperature/top_p
+            if "o1" in self.model_params["model"] or "gpt-5" in self.model_params["model"]:
+                params.pop("temperature", None)
+                params.pop("top_p", None)
+            
+            response = self.openai.chat.completions.create(
+                messages=processed_input,
+                **params
+            )
+        else:
+            self.model_params["max_tokens"] = 4096
+            response = self.openai.chat.completions.create(
+                messages=processed_input,
+                **self.model_params
+            )
 
         # calculate token number
         prompt_tokens = response.usage.prompt_tokens

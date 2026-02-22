@@ -60,23 +60,6 @@ class MapCoderMAS(MapCoder):
         self.coding_model = coding_model
         self.debugging_model = debugging_model
 
-    def parse_xml(self, response: str) -> dict:
-        if '```xml' in response:
-            response = response.split('```xml')[-1].split('```')[0]
-        elif '```' in response:
-            response = response.split('```')[-1].split('```')[0]
-
-        response = response.strip()
-
-        try:
-            root = ET.fromstring(response)
-        except:
-            try:
-                root = ET.fromstring('<root>\n' + response + '\n</root>')
-            except:
-                root = ET.fromstring('<root>\n' + response)
-        return self.xml_to_dict(root)
-
     def agent_chat(self, agent_model:BaseModel, processed_input: List[dict]) -> (str, int, int):
         return agent_model.prompt(processed_input=processed_input)
 

@@ -2,6 +2,7 @@ from models.Gemini import Gemini, GeminiPro
 from models.OpenAI import ChatGPT
 from models.OpenAI import GPT4
 from models.Qwen import Qwen, QwenCoder
+from models.Llama import Llama
 
 
 class ModelFactory:
@@ -19,5 +20,7 @@ class ModelFactory:
             return Qwen
         elif model_name == "QwenCoder":
             return QwenCoder
+        elif model_name == "Llama":
+            return Llama
         else:
             raise Exception(f"Unknown model name {model_name}")
