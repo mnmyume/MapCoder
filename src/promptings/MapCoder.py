@@ -65,20 +65,94 @@ class MapCoder(BaseStrategy):
                 result[child.tag] = child.text
         return result
 
-    def parse_xml(self, response: str) -> dict:
-        if '```xml' in response:
-            response = response.replace('```xml', '')
-        if '```' in response:
-            response = response.replace('```', '')
+    def _sanitize_xml(self, text: str) -> str:
+        """Clean up common XML issues from LLM output."""
+        # Strip markdown fences
+        if '```xml' in text:
+            text = text.replace('```xml', '')
+        if '```' in text:
+            text = text.replace('```', '')
 
+        # Strip any text before the first XML tag (LLM preamble)
+        first_tag = re.search(r'<\w', text)
+        if first_tag:
+            text = text[first_tag.start():]
+
+        # Close unclosed CDATA sections
+        open_count = text.count('<![CDATA[')
+        close_count = text.count(']]>')
+        if open_count > close_count:
+            text += ']]>' * (open_count - close_count)
+
+        # Remove stray CDATA markers that aren't inside tags
+        # Fix improperly nested CDATA
+        text = re.sub(r'<!\[CDATA\[\s*<!\[CDATA\[', '<![CDATA[', text)
+
+        return text.strip()
+
+    def _regex_fallback_parse(self, response: str) -> dict:
+        """
+        Last-resort regex extraction when XML parsing completely fails.
+        Extracts content between known XML tags.
+        """
+        result = {}
+
+        # Extract algorithm
+        algo_match = re.search(r'<algorithm>(.*?)</algorithm>', response, re.DOTALL)
+        result['algorithm'] = algo_match.group(1).strip() if algo_match else "Unable to parse algorithm from response."
+
+        # Extract problems
+        problem_blocks = re.findall(r'<problem>(.*?)</problem>', response, re.DOTALL)
+        if problem_blocks:
+            problems = []
+            for block in problem_blocks:
+                desc_match = re.search(r'<description>(.*?)</description>', block, re.DOTALL)
+                code_match = re.search(r'<code>(.*?)</code>', block, re.DOTALL)
+                plan_match = re.search(r'<planning>(.*?)</planning>', block, re.DOTALL)
+                problems.append({
+                    'description': desc_match.group(1).strip() if desc_match else "No description parsed.",
+                    'code': code_match.group(1).strip() if code_match else "",
+                    'planning': plan_match.group(1).strip() if plan_match else "No planning parsed.",
+                })
+            result['problem'] = problems if len(problems) > 1 else problems[0]
+        else:
+            # Absolute minimum fallback
+            result['problem'] = {
+                'description': "Fallback: could not parse exemplar from model response.",
+                'code': "",
+                'planning': "Attempt a direct solution.",
+            }
+
+        return result
+
+    def parse_xml(self, response: str) -> dict:
+        sanitized = self._sanitize_xml(response)
+
+        # Attempt 1: parse as-is
         try:
-            root = ET.fromstring(response)
-        except:
-            try:
-                root = ET.fromstring('<root>\n' + response + '\n</root>')
-            except:
-                root = ET.fromstring('<root>\n' + response)
-        return self.xml_to_dict(root)
+            root = ET.fromstring(sanitized)
+            return self.xml_to_dict(root)
+        except ET.ParseError:
+            pass
+
+        # Attempt 2: wrap in <root>
+        try:
+            root = ET.fromstring('<root>\n' + sanitized + '\n</root>')
+            return self.xml_to_dict(root)
+        except ET.ParseError:
+            pass
+
+        # Attempt 3: strip all CDATA and try again
+        try:
+            stripped = sanitized.replace('<![CDATA[', '').replace(']]>', '')
+            root = ET.fromstring('<root>\n' + stripped + '\n</root>')
+            return self.xml_to_dict(root)
+        except ET.ParseError:
+            pass
+
+        # Attempt 4: regex fallback
+        print("[WARNING] XML parsing failed completely. Using regex fallback.", flush=True)
+        return self._regex_fallback_parse(response)
 
     def parse_code(self, response: str) -> str:
         if "```" not in response:
@@ -133,6 +207,11 @@ class MapCoder(BaseStrategy):
             code_pattern = r'```csharp((.|\n)*?)```'
 
         code_blocks = re.findall(code_pattern, response, re.DOTALL)
+
+        if not code_blocks:
+            # No code blocks found despite backticks being present;
+            # return the raw response stripped of backtick fences
+            return response.replace('```', '').strip()
 
         if type(code_blocks[-1]) == tuple or type(code_blocks[-1]) == list:
             code_str = "\n".join(code_blocks[-1])
@@ -239,14 +318,30 @@ Your response must follow the following xml format-
 
         response = self.parse_xml(response)
 
-        algorithm_prompt = f"## Relevant Algorithm to solve the next problem:\n{ response['algorithm']}"
+        try:
+            algorithm_prompt = f"## Relevant Algorithm to solve the next problem:\n{ response['algorithm']}"
+        except (KeyError, TypeError):
+            print("[WARNING] Could not extract 'algorithm' from parsed response. Using empty.", flush=True)
+            algorithm_prompt = "## Relevant Algorithm: Unable to determine from model response."
+
         sample_io_prompt = f"## Sample Test cases: \n{self.get_sample_io_str(item['sample_io'])}\n"
         # if type(self.data) != MBPPDataset and type(self.data) != XCodeDataset else ""
 
+        try:
+            problem_data = response["problem"]
+            if isinstance(problem_data, dict):
+                problem_data = [problem_data]
+        except (KeyError, TypeError):
+            print("[WARNING] Could not extract 'problem' from parsed response. Using fallback exemplar.", flush=True)
+            problem_data = [{
+                "description": "Fallback: could not parse exemplar from model response.",
+                "planning": "Attempt a direct solution.",
+            }]
+
         plannings = []
-        for example_no, example in enumerate(response["problem"], start=1):
-            example_problem = example["description"]
-            example_planning = example["planning"]
+        for example_no, example in enumerate(problem_data, start=1):
+            example_problem = example.get("description", "No description available.")
+            example_planning = example.get("planning", "Attempt a direct solution.")
 
             input_for_problem_planning = [
                 {

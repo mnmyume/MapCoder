@@ -112,7 +112,7 @@ class Qwen(BaseModel):
         completion_tokens = len(generated_ids[0])
 
         # calculate price
-        price = prompt_tokens*self.input_price + completion_tokens*self.output_price
+        price = (prompt_tokens * self.input_price + completion_tokens * self.output_price) / 1_000_000
 
         return response, prompt_tokens, completion_tokens, price
 

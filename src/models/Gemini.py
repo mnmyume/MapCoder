@@ -35,7 +35,7 @@ class Gemini(BaseModel):
         prompt_tokens = usage.prompt_token_count
         completion_tokens = usage.total_token_count - usage.prompt_token_count
 
-        price = prompt_tokens * self.input_price + completion_tokens * self.output_price
+        price = (prompt_tokens * self.input_price + completion_tokens * self.output_price) / 1_000_000
 
         return response.text, prompt_tokens, completion_tokens, price
 

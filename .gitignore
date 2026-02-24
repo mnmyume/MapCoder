@@ -4,11 +4,13 @@ __pycache__
 .vscode
 *workspace*
 /.idea/
-ExecEval/
+/ExecEval/
 samples/*
 desktop.ini
 /logs/
 /outputs/
+/archive/
+/docs/
 
 test.ipynb
 /tests/

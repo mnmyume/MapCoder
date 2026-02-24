@@ -140,19 +140,31 @@ Your response must follow the following xml format-
 
         response = self.parse_xml(response)
 
-        algorithm_prompt = f"## Relevant Algorithm to solve the next problem:\n{ response['algorithm']}"
+        try:
+            algorithm_prompt = f"## Relevant Algorithm to solve the next problem:\n{ response['algorithm']}"
+        except (KeyError, TypeError):
+            print("[WARNING] Could not extract 'algorithm' from parsed response. Using empty.", flush=True)
+            algorithm_prompt = "## Relevant Algorithm: Unable to determine from model response."
+
         sample_io_prompt = f"## Sample Test cases: \n{self.get_sample_io_str(item['sample_io'])}\n"
         # if type(self.data) != MBPPDataset and type(self.data) != XCodeDataset else ""
 
         # fix
-        problem_data = response["problem"]
-        if isinstance(problem_data, dict):
-            problem_data = [problem_data]
+        try:
+            problem_data = response["problem"]
+            if isinstance(problem_data, dict):
+                problem_data = [problem_data]
+        except (KeyError, TypeError):
+            print("[WARNING] Could not extract 'problem' from parsed response. Using fallback exemplar.", flush=True)
+            problem_data = [{
+                "description": "Fallback: could not parse exemplar from model response.",
+                "planning": "Attempt a direct solution.",
+            }]
 
         plannings = []
         for example_no, example in enumerate(problem_data, start=1):
-            example_problem = example["description"]
-            example_planning = example["planning"]
+            example_problem = example.get("description", "No description available.")
+            example_planning = example.get("planning", "Attempt a direct solution.")
 
             input_for_problem_planning = [
                 {

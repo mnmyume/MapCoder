@@ -24,7 +24,7 @@ AGENT_ROLES: List[str] = [
 ]
 
 # ─── Dataset / Run Defaults ─────────────────────────────────────────────────
-DEFAULT_DATASET: str = "HumanEval"
+DEFAULT_DATASET: str = "HumanEvalSubset"
 DEFAULT_TEMPERATURE: float = 0.0
 DEFAULT_PASS_AT_K: int = 1
 DEFAULT_LANGUAGE: str = "Python3"

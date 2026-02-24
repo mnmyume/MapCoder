@@ -215,7 +215,7 @@ class OpenAIModel(OpenAIBaseModel):
         completion_tokens = response.usage.completion_tokens
 
         # calculate price
-        price = prompt_tokens*self.input_price + completion_tokens*self.output_price
+        price = (prompt_tokens * self.input_price + completion_tokens * self.output_price) / 1_000_000
 
         return response.choices[0].message.content, prompt_tokens, completion_tokens, price
 
