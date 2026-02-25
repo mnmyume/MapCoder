@@ -4,6 +4,10 @@ Train a Random Forest surrogate model on MapCoderMAS benchmark data.
 Features : 4 categorical model assignments (ordinal-encoded)
 Targets  : accuracy (%), cost ($)
 
+This script is STRICTLY for initial model training.  It never loads or
+evaluates on the held-out test set (test_configs.json).  Use
+test_surrogate.py for evaluation against the test set.
+
 Usage (with real benchmark results):
     python surrogate/train_surrogate.py
 
@@ -11,8 +15,7 @@ Usage (synthetic dry-run, no real benchmarks needed):
     python surrogate/train_surrogate.py --synthetic
 
 Output:
-    - Prints R², MAE per objective on the 60-sample test set
-    - Saves the trained model to surrogate/data/surrogate_model.pkl
+    - Saves the trained model to surrogate/data/model_initial.pkl
 """
 
 import argparse
@@ -30,7 +33,6 @@ import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.multioutput import MultiOutputRegressor
 from sklearn.preprocessing import OrdinalEncoder
-from sklearn.metrics import r2_score, mean_absolute_error
 
 from surrogate.config import MODEL_POOL, AGENT_ROLES
 
@@ -100,24 +102,21 @@ def generate_synthetic_data(configs_dicts: list):
 
 # ─── Training ───────────────────────────────────────────────────────────────
 
-def train_surrogate(X_train_raw, y_train, X_test_raw, y_test,
-                    model_pool=None, n_estimators=100, random_state=42):
+def fit_model(X_raw, y, model_pool=None, n_estimators=100, random_state=42):
     """
-    Train a MultiOutput Random Forest and evaluate on the test set.
+    Fit a MultiOutput Random Forest on training data only.
 
     Returns
     -------
-    model : MultiOutputRegressor
-    encoder : OrdinalEncoder
-    metrics : dict
+    model   : MultiOutputRegressor  – fitted model
+    encoder : OrdinalEncoder        – fitted encoder
     """
     if model_pool is None:
         model_pool = MODEL_POOL
 
     # Encode categorical features
     encoder = OrdinalEncoder(categories=[model_pool] * len(AGENT_ROLES))
-    X_train = encoder.fit_transform(X_train_raw)
-    X_test = encoder.transform(X_test_raw)
+    X = encoder.fit_transform(X_raw)
 
     # Train
     rf = RandomForestRegressor(
@@ -126,36 +125,17 @@ def train_surrogate(X_train_raw, y_train, X_test_raw, y_test,
         n_jobs=-1,
     )
     model = MultiOutputRegressor(rf)
-    model.fit(X_train, y_train)
+    model.fit(X, y)
 
-    # Predict
-    y_pred = model.predict(X_test)
-
-    # Metrics per objective
-    obj_names = ["accuracy", "cost"]
-    metrics = {}
-    for i, name in enumerate(obj_names):
-        r2 = r2_score(y_test[:, i], y_pred[:, i])
-        mae = mean_absolute_error(y_test[:, i], y_pred[:, i])
-        metrics[name] = {"r2": r2, "mae": mae}
-
-    # Per-tree uncertainty (std across estimators) on test set
-    for i, (name, estimator) in enumerate(
-        zip(obj_names, model.estimators_)
-    ):
-        tree_preds = np.array(
-            [tree.predict(X_test) for tree in estimator.estimators_]
-        )
-        mean_std = np.mean(np.std(tree_preds, axis=0))
-        metrics[name]["mean_tree_std"] = mean_std
-
-    return model, encoder, metrics
+    return model, encoder
 
 
 # ─── CLI ─────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="Train RF surrogate model")
+    parser = argparse.ArgumentParser(
+        description="Train the initial RF surrogate model (training data only)"
+    )
     parser.add_argument("--data_dir", type=str, default="surrogate/data",
                         help="Directory containing config JSONs and results/")
     parser.add_argument("--results_dir", type=str, default=None,
@@ -164,63 +144,55 @@ def main():
     parser.add_argument("--synthetic", action="store_true",
                         help="Use synthetic data for dry-run testing")
     parser.add_argument("--output", type=str, default=None,
-                        help="Path to save model pickle")
+                        help="Path to save model pickle (default: <data_dir>/model_initial.pkl)")
     args = parser.parse_args()
 
     data_dir = args.data_dir
     results_dir = args.results_dir or os.path.join(data_dir, "results")
-    output_path = args.output or os.path.join(data_dir, "surrogate_model.pkl")
+    output_path = args.output or os.path.join(data_dir, "model_initial.pkl")
 
+    # ── Only load training configs (NEVER test_configs.json) ──────────────
     train_cfg_path = os.path.join(data_dir, "train_configs.json")
-    test_cfg_path = os.path.join(data_dir, "test_configs.json")
 
-    # Load config files
     with open(train_cfg_path, "r") as f:
         train_cfgs = json.load(f)
-    with open(test_cfg_path, "r") as f:
-        test_cfgs = json.load(f)
 
     print(f"Train configs: {len(train_cfgs)}")
-    print(f"Test configs : {len(test_cfgs)}")
     print(f"Model pool   : {MODEL_POOL}\n")
 
     if args.synthetic:
         print("▶ Using SYNTHETIC data (dry-run mode)\n")
         X_train_raw, y_train = generate_synthetic_data(train_cfgs)
-        X_test_raw, y_test = generate_synthetic_data(test_cfgs)
     else:
         print("▶ Loading REAL benchmark results\n")
         X_train_raw, y_train = load_real_data(train_cfg_path, results_dir)
-        X_test_raw, y_test = load_real_data(test_cfg_path, results_dir)
 
-        if len(y_train) == 0 or len(y_test) == 0:
-            print("ERROR: No result data found. Run benchmarks first, or "
+        if len(y_train) == 0:
+            print("ERROR: No training data found. Run benchmarks first, or "
                   "use --synthetic for a dry-run.")
             sys.exit(1)
 
+    print(f"Training samples: {len(y_train)}")
+
     # Train
-    model, encoder, metrics = train_surrogate(
+    model, encoder = fit_model(
         X_train_raw, y_train,
-        X_test_raw, y_test,
         n_estimators=args.n_estimators,
     )
 
-    # Report
-    print("=" * 60)
-    print("  SURROGATE MODEL EVALUATION (Test Set)")
-    print("=" * 60)
-    for obj_name, m in metrics.items():
-        print(f"\n  {obj_name.upper()}")
-        print(f"    R²              : {m['r2']:.4f}")
-        print(f"    MAE             : {m['mae']:.4f}")
-        print(f"    Mean tree σ     : {m['mean_tree_std']:.4f}")
-    print("=" * 60)
-
     # Save
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
     with open(output_path, "wb") as f:
-        pickle.dump({"model": model, "encoder": encoder, "metrics": metrics}, f)
-    print(f"\n✓ Model saved → {output_path}")
+        pickle.dump({"model": model, "encoder": encoder}, f)
+
+    print(f"\n{'='*60}")
+    print(f"  INITIAL SURROGATE MODEL TRAINED")
+    print(f"{'='*60}")
+    print(f"  Training samples : {len(y_train)}")
+    print(f"  Features         : {len(AGENT_ROLES)} roles × {len(MODEL_POOL)} models")
+    print(f"  Model saved      : {output_path}")
+    print(f"{'='*60}")
+    print(f"\n  → Run test_surrogate.py to evaluate on the held-out test set.")
 
 
 if __name__ == "__main__":

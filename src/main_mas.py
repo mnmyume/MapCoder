@@ -72,19 +72,15 @@ def main():
           f"Running start {config_label}, Time: {datetime.now()}\n"
           f"##########################\n")
 
-    # --- Instantiate the 4 models ---
-    retrieval_model = ModelFactory.get_model_class(args.retrieval_model)(
-        temperature=args.temperature
-    )
-    planning_model = ModelFactory.get_model_class(args.planning_model)(
-        temperature=args.temperature
-    )
-    coding_model = ModelFactory.get_model_class(args.coding_model)(
-        temperature=args.temperature
-    )
-    debugging_model = ModelFactory.get_model_class(args.debugging_model)(
-        temperature=args.temperature
-    )
+    # --- Instantiate the 4 models (None = ablated agent) ---
+    def _make_model(name):
+        cls = ModelFactory.get_model_class(name)
+        return cls(temperature=args.temperature) if cls is not None else None
+
+    retrieval_model = _make_model(args.retrieval_model)
+    planning_model = _make_model(args.planning_model)
+    coding_model = _make_model(args.coding_model)
+    debugging_model = _make_model(args.debugging_model)
 
     # --- Build the MAS strategy ---
     results_path = os.path.join(args.output_dir, f"config_{args.config_index}.jsonl")

@@ -66,10 +66,28 @@ class MapCoderMAS(MapCoder):
     def run_single_pass(self, item: dict):
         print("", flush=True)
 
-        input_kb_exemplars = [
-            {
-                "role": "user",
-                "content": f"""Given a problem, provide relevant problems then identify the algorithm behind it and also explain the tutorial of the algorithm.
+        pr_tok = 0
+        com_tok = 0
+        price = 0.0
+
+        sample_io_prompt = f"## Sample Test cases: \n{self.get_sample_io_str(item['sample_io'])}\n"
+
+        if type(self.data) == APPSDataset or type(self.data) == CodeContestDataset or type(self.data) == XCodeDataset:
+            std_input_prompt = "## Note: Strictly follow the input and output format. The input should be taken from Standard input and output should be given to standard output. If you are writing a function then after the function definition take input using `input()` function then call the function with specified parameters and finally print the output of the function. Do not add extra print statement otherwise it will failed the test cases."
+        else:
+            std_input_prompt = ""
+
+        # ────────────────────────────────────────────────────────────────
+        # Stage 1: Retrieval Agent  (skip if self.retrieval_model is None)
+        # ────────────────────────────────────────────────────────────────
+        algorithm_prompt = ""
+        problem_data = None
+
+        if self.retrieval_model is not None:
+            input_kb_exemplars = [
+                {
+                    "role": "user",
+                    "content": f"""Given a problem, provide relevant problems then identify the algorithm behind it and also explain the tutorial of the algorithm.
 # Problem:
 {self.data.get_prompt(item)}
 
@@ -107,146 +125,122 @@ Your response must follow the following xml format-
 </algorithm>
 </root>
 """,
-            },
-        ]
-
-        print("\n\n________________________")
-        print("Input for knowledge base and exemplars: ")
-        print(input_kb_exemplars[0]['content'], flush=True)
-
-        response, pr_tok, com_tok, price = self.agent_chat(
-            self.retrieval_model,
-            processed_input=input_kb_exemplars
-        )
-        item['api_calls'] = item.get('api_calls', 0) + 1
-
-        # Post processing
-        response = self.trim_text(
-            response, "# Identify the algorithm (Brute-force, Dynamic Programming, Divide-and-conquer, Greedy, Backtracking, Recursive, Binary search, and so on) that needs to be used to solve the original problem.")
-        response = self.trim_text(
-            response, "# Write a useful tutorial about the above mentioned algorithms. Provide a high level generic tutorial for solving this types of problem. Do not generate code.")
-        response = self.trim_text(
-            response, "# Planning to solve this problem:")
-        response = self.trim_text(
-            response, f"# Let's think step by step to solve this problem in {self.language} programming language.")
-        response = self.replace_tag(response, 'algorithm')
-        response = self.replace_tag(response, 'description')
-        response = self.replace_tag(response, 'code')
-        response = self.replace_tag(response, 'planning')
-
-        print("\n\n________________________")
-        print("Response from knowledge base and exemplars: ")
-        print(response, flush=True)
-
-        response = self.parse_xml(response)
-
-        try:
-            algorithm_prompt = f"## Relevant Algorithm to solve the next problem:\n{ response['algorithm']}"
-        except (KeyError, TypeError):
-            print("[WARNING] Could not extract 'algorithm' from parsed response. Using empty.", flush=True)
-            algorithm_prompt = "## Relevant Algorithm: Unable to determine from model response."
-
-        sample_io_prompt = f"## Sample Test cases: \n{self.get_sample_io_str(item['sample_io'])}\n"
-        # if type(self.data) != MBPPDataset and type(self.data) != XCodeDataset else ""
-
-        # fix
-        try:
-            problem_data = response["problem"]
-            if isinstance(problem_data, dict):
-                problem_data = [problem_data]
-        except (KeyError, TypeError):
-            print("[WARNING] Could not extract 'problem' from parsed response. Using fallback exemplar.", flush=True)
-            problem_data = [{
-                "description": "Fallback: could not parse exemplar from model response.",
-                "planning": "Attempt a direct solution.",
-            }]
-
-        plannings = []
-        for example_no, example in enumerate(problem_data, start=1):
-            example_problem = example.get("description", "No description available.")
-            example_planning = example.get("planning", "Attempt a direct solution.")
-
-            input_for_problem_planning = [
-                {
-                    "role": "user",
-                    "content": f"Given a competitive programming problem generate a concrete planning to solve the problem.\n# Problem:\n{example_problem}\n# Planning:\n{example_planning}\n{algorithm_prompt}\n## Problem to be solved:\n{self.data.get_prompt(item)}\n{sample_io_prompt}\n## Planning:\n\n----------------\nImportant: You should give only the planning to solve the problem. Do not add extra explanation or words."
-                }
+                },
             ]
 
             print("\n\n________________________")
-            print(
-                f"Input for our problem planning using example: {example_no}: ")
-            print(input_for_problem_planning[0]['content'], flush=True)
+            print("Input for knowledge base and exemplars: ")
+            print(input_kb_exemplars[0]['content'], flush=True)
 
-            planning, pr_tok_1, com_tok_1, price_1 = self.agent_chat(
-                self.planning_model,
-                input_for_problem_planning
+            response, pr_tok_r, com_tok_r, price_r = self.agent_chat(
+                self.retrieval_model,
+                processed_input=input_kb_exemplars
             )
-            item['api_calls'] += 1
-            # time.sleep(1)
-            pr_tok += pr_tok_1
-            com_tok += com_tok_1
-            price += price_1
+            item['api_calls'] = item.get('api_calls', 0) + 1
+            pr_tok += pr_tok_r
+            com_tok += com_tok_r
+            price += price_r
 
-            # planning = self.parse_xml(planning)
-            # planning['confidence'] = int(str(planning['confidence']).strip())
+            # Post processing
+            response = self.trim_text(
+                response, "# Identify the algorithm (Brute-force, Dynamic Programming, Divide-and-conquer, Greedy, Backtracking, Recursive, Binary search, and so on) that needs to be used to solve the original problem.")
+            response = self.trim_text(
+                response, "# Write a useful tutorial about the above mentioned algorithms. Provide a high level generic tutorial for solving this types of problem. Do not generate code.")
+            response = self.trim_text(
+                response, "# Planning to solve this problem:")
+            response = self.trim_text(
+                response, f"# Let's think step by step to solve this problem in {self.language} programming language.")
+            response = self.replace_tag(response, 'algorithm')
+            response = self.replace_tag(response, 'description')
+            response = self.replace_tag(response, 'code')
+            response = self.replace_tag(response, 'planning')
 
             print("\n\n________________________")
-            print("Response from our problem planning: ")
-            print(planning, flush=True)
+            print("Response from knowledge base and exemplars: ")
+            print(response, flush=True)
 
-            # input_for_planning_verification = [
-            #     {
-            #         "role": "user",
-            #         "content": f"Given a competitive programming problem and a plan to solve the problem in {self.language}, tell whether the plan is correct to solve this problem.\n\n# Problem:\n{self.data.get_prompt(item)}\n# Planning:\n{planning}\n\n----------------\nImportant: Your response must follow the following xml format-```\n<root>\n<explanation> Discuss whether the given competitive programming problem is solvable by using the above mentioned planning.</explanation>\n<confidence> Confidence score regarding the solvability of the problem. Must be an integer between 0 and 100. </confidence>\n</root>\n```"
-            #     }
-            # ]
-            #
-            # print("Input for planning verification: ")
-            # print(input_for_planning_verification[0]['content'], flush=True)
-            #
-            # verification_res, pr_tok_1, com_tok_1, price_1 = self.agent_chat(
-            #     self.planning_model,
-            #     input_for_planning_verification
-            # )
-            # item['api_calls'] += 1
-            # # time.sleep(1)
-            # pr_tok += pr_tok_1
-            # com_tok += com_tok_1
-            # price += price_1
-            #
-            # verification_res = self.replace_tag(
-            #     verification_res, 'explanation')
-            # verification_res = self.replace_tag(verification_res, 'confidence')
-            #
-            # verification_res = self.parse_xml(verification_res)
-            #
-            # # fix
-            # if 'root' in verification_res:
-            #     verification_res = verification_res['root']
-            #
-            # verification_res['confidence'] = int(
-            #     str(verification_res['confidence']).strip())
-            #
-            # print("Response from planning verification: ")
-            # print(verification_res, flush=True)
+            response = self.parse_xml(response)
 
-            plannings.append((
-                planning,
-                100, # verification_res['confidence'],
-                example
-            ))
+            try:
+                algorithm_prompt = f"## Relevant Algorithm to solve the next problem:\n{ response['algorithm']}"
+            except (KeyError, TypeError):
+                print("[WARNING] Could not extract 'algorithm' from parsed response. Using empty.", flush=True)
 
-            # if type(self.data) == MBPPDataset and verification_res['confidence'] == 100:
-            #     break
-
-        plannings.sort(key=lambda x: x[1], reverse=True)
-        # time.sleep(1)
-
-        if type(self.data) == APPSDataset or type(self.data) == CodeContestDataset or type(self.data) == XCodeDataset:
-            std_input_prompt = "## Note: Strictly follow the input and output format. The input should be taken from Standard input and output should be given to standard output. If you are writing a function then after the function definition take input using `input()` function then call the function with specified parameters and finally print the output of the function. Do not add extra print statement otherwise it will failed the test cases."
+            try:
+                problem_data = response["problem"]
+                if isinstance(problem_data, dict):
+                    problem_data = [problem_data]
+            except (KeyError, TypeError):
+                print("[WARNING] Could not extract 'problem' from parsed response. Using fallback exemplar.", flush=True)
+                problem_data = None
         else:
-            std_input_prompt = ""
+            print("[ABLATION] Retrieval agent is None — skipping KB/exemplar retrieval.", flush=True)
+            item['api_calls'] = item.get('api_calls', 0)
+
+        # Fallback if retrieval was skipped or failed
+        if problem_data is None:
+            problem_data = [{
+                "description": "No exemplar (retrieval ablated or failed).",
+                "planning": "Attempt a direct solution.",
+            }]
+
+        # ────────────────────────────────────────────────────────────────
+        # Stage 2: Planning Agent  (skip if self.planning_model is None)
+        # ────────────────────────────────────────────────────────────────
+        plannings = []
+
+        if self.planning_model is not None:
+            for example_no, example in enumerate(problem_data, start=1):
+                example_problem = example.get("description", "No description available.")
+                example_planning = example.get("planning", "Attempt a direct solution.")
+
+                input_for_problem_planning = [
+                    {
+                        "role": "user",
+                        "content": f"Given a competitive programming problem generate a concrete planning to solve the problem.\n# Problem:\n{example_problem}\n# Planning:\n{example_planning}\n{algorithm_prompt}\n## Problem to be solved:\n{self.data.get_prompt(item)}\n{sample_io_prompt}\n## Planning:\n\n----------------\nImportant: You should give only the planning to solve the problem. Do not add extra explanation or words."
+                    }
+                ]
+
+                print("\n\n________________________")
+                print(
+                    f"Input for our problem planning using example: {example_no}: ")
+                print(input_for_problem_planning[0]['content'], flush=True)
+
+                planning, pr_tok_1, com_tok_1, price_1 = self.agent_chat(
+                    self.planning_model,
+                    input_for_problem_planning
+                )
+                item['api_calls'] += 1
+                pr_tok += pr_tok_1
+                com_tok += com_tok_1
+                price += price_1
+
+                print("\n\n________________________")
+                print("Response from our problem planning: ")
+                print(planning, flush=True)
+
+                plannings.append((
+                    planning,
+                    100,
+                    example
+                ))
+
+            plannings.sort(key=lambda x: x[1], reverse=True)
+        else:
+            print("[ABLATION] Planning agent is None — skipping planning stage.", flush=True)
+            # Create dummy planning entries so the coding loop still works
+            for example in problem_data:
+                plannings.append((
+                    "No planning (planning agent ablated).",
+                    100,
+                    example
+                ))
+
+        # ────────────────────────────────────────────────────────────────
+        # Stage 3: Coding Agent  (never None — enforced by config)
+        # Stage 4: Debugging Agent  (skip loop if self.debugging_model is None)
+        # ────────────────────────────────────────────────────────────────
+        code = ""
 
         for planning_with_ex in plannings:
             planning, confidence, example = planning_with_ex
@@ -267,7 +261,6 @@ Your response must follow the following xml format-
                 input_for_final_code_generation
             )
             item['api_calls'] += 1
-            # time.sleep(1)
 
             code = self.parse_code(code)
             pr_tok += pr_tok_1
@@ -278,50 +271,60 @@ Your response must follow the following xml format-
             print("Response from final code generation: ")
             print(code, flush=True)
 
-            response = f"## Planning: {planning}\n## Code:\n```\n{code}\n```"
-            passed = False
+            # Debugging loop (skip if debugging_model is None)
+            if self.debugging_model is not None:
+                response = f"## Planning: {planning}\n## Code:\n```\n{code}\n```"
+                passed = False
 
-            for i in range(1, self.t + 1):
-                passed, test_log = self.data.evaluate_sample_io(
-                    item,
-                    code,
-                    self.language
+                for i in range(1, self.t + 1):
+                    passed, test_log = self.data.evaluate_sample_io(
+                        item,
+                        code,
+                        self.language
+                    )
+
+                    if passed:
+                        break
+
+                    print(f"Input for improving code generation: {i}")
+                    input_for_improving_code = [
+                        {
+                            "role": "user",
+                            "content": f"Given a competitive programming problem you have generated {self.language} code to solve the problem. But the generated code can not pass sample test cases. Improve your code to solve the problem correctly.\n{algorithm_prompt}\n## Problem to be solved:\n{self.data.get_prompt(item)}\n{response}\n## Test Report:\n{test_log}\n## Modified Planning:\n## Let's think step by step to modify {self.language} Code for solving this problem.\n\n----------------\nImportant:\n{std_input_prompt}\n## Your response must contain the modified planning and then the {self.language} code inside ``` block to solve this problem."
+                        }
+                    ]
+
+                    print("\n\n________________________")
+                    print("Input for improving code generation: ")
+                    print(input_for_improving_code[0]['content'], flush=True)
+
+                    response, pr_tok_1, com_tok_1, price_1 = self.agent_chat(
+                        self.debugging_model,
+                        input_for_improving_code
+                    )
+                    item['api_calls'] += 1
+
+                    code = self.parse_code(response)
+                    pr_tok += pr_tok_1
+                    com_tok += com_tok_1
+                    price += price_1
+
+                    print("\n\n________________________")
+                    print("Response from improving code generation: ")
+                    print(response, flush=True)
+
+                # got a code that passed all sample test cases
+                if passed:
+                    break
+            else:
+                print("[ABLATION] Debugging agent is None — skipping improvement loop.", flush=True)
+                # Evaluate once to see if code passes; if yes, stop early
+                passed, _ = self.data.evaluate_sample_io(
+                    item, code, self.language
                 )
-
                 if passed:
                     break
 
-                print(f"Input for improving code generation: {i}")
-                input_for_improving_code = [
-                    {
-                        "role": "user",
-                        "content": f"Given a competitive programming problem you have generated {self.language} code to solve the problem. But the generated code can not pass sample test cases. Improve your code to solve the problem correctly.\n{algorithm_prompt}\n## Problem to be solved:\n{self.data.get_prompt(item)}\n{response}\n## Test Report:\n{test_log}\n## Modified Planning:\n## Let's think step by step to modify {self.language} Code for solving this problem.\n\n----------------\nImportant:\n{std_input_prompt}\n## Your response must contain the modified planning and then the {self.language} code inside ``` block to solve this problem."
-                    }
-                ]
-
-                print("\n\n________________________")
-                print("Input for improving code generation: ")
-                print(input_for_improving_code[0]['content'], flush=True)
-
-                response, pr_tok_1, com_tok_1, price_1 = self.agent_chat(
-                    self.debugging_model,
-                    input_for_improving_code
-                )
-                item['api_calls'] += 1
-                # time.sleep(1)
-
-                code = self.parse_code(response)
-                pr_tok += pr_tok_1
-                com_tok += com_tok_1
-                price += price_1
-
-                print("\n\n________________________")
-                print("Response from improving code generation: ")
-                print(response, flush=True)
-
-            # got a code that passed all sample test cases
-            if passed:
-                break
-
         print("________________________\n\n", flush=True)
         return code, pr_tok, com_tok, price
+

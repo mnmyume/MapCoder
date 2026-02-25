@@ -8,6 +8,8 @@ from models.Llama import Llama
 class ModelFactory:
     @staticmethod
     def get_model_class(model_name):
+        if model_name == "None":
+            return None
         if model_name == "Gemini":
             return Gemini
         elif model_name == "GeminiPro":

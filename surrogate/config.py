@@ -12,8 +12,12 @@ MODEL_POOL: List[str] = [
     "Qwen",
     "QwenCoder",
     "Llama",
-    "ChatGPT"
+    "ChatGPT",
+    "None",
 ]
+
+# Roles that must NEVER be assigned the "None" model
+NONE_INELIGIBLE_ROLES: List[str] = ["coding"]
 
 # ─── Agent Roles (ordered) ──────────────────────────────────────────────────
 AGENT_ROLES: List[str] = [

@@ -24,17 +24,26 @@ _PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-from surrogate.config import MODEL_POOL, AGENT_ROLES
+from surrogate.config import MODEL_POOL, AGENT_ROLES, NONE_INELIGIBLE_ROLES
 
 
 # ─── Core sampling logic ────────────────────────────────────────────────────
+
+def _is_valid_config(cfg: Tuple[str, ...]) -> bool:
+    """Check that no NONE_INELIGIBLE_ROLES role is assigned 'None'."""
+    for role, model in zip(AGENT_ROLES, cfg):
+        if model == "None" and role in NONE_INELIGIBLE_ROLES:
+            return False
+    return True
+
 
 def generate_all_possible_configs(
     model_pool: List[str],
     num_roles: int,
 ) -> List[Tuple[str, ...]]:
-    """Return every possible configuration (Cartesian product)."""
-    return list(itertools.product(model_pool, repeat=num_roles))
+    """Return every valid configuration (Cartesian product minus constrained ones)."""
+    all_cfgs = list(itertools.product(model_pool, repeat=num_roles))
+    return [c for c in all_cfgs if _is_valid_config(c)]
 
 
 def sample_unique_configs(
