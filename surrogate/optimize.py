@@ -15,16 +15,19 @@ test_configs.json.  The test set is strictly reserved for
 test_surrogate.py.
 
 Usage (real, on cluster):
-    python surrogate/optimize.py \\
-        --max_iterations 10 --n_per_iter 5    \\
-        --tolerance 0.01 --patience 3
+    sbatch slurm/run_optimize.sh \
+    --max_iterations 10 \
+    --n_per_iter 5 \
+    --tolerance 0.01 \
+    --patience 3
 
 Usage (synthetic dry-run, no Slurm):
-    python surrogate/optimize.py --dry_run \\
+    python surrogate/optimize.py --dry_run \
         --max_iterations 3 --n_per_iter 3
 """
 
 import argparse
+import datetime
 import json
 import os
 import pickle
@@ -57,7 +60,32 @@ from surrogate.train_surrogate import (
 DATA_DIR = os.path.join("surrogate", "data")
 RESULTS_DIR = os.path.join(DATA_DIR, "results")
 LOG_PATH = os.path.join(DATA_DIR, "optimization_log.json")
+RUN_LOG_PATH = os.path.join(DATA_DIR, "optimize_run.log")
 SLURM_TEMPLATE = os.path.join("slurm", "run_iteration.sh")
+
+
+class _TeeLogger:
+    """Duplicate stdout to both the terminal and a log file."""
+
+    def __init__(self, log_path: str):
+        os.makedirs(os.path.dirname(log_path) or ".", exist_ok=True)
+        self._terminal = sys.stdout
+        self._log = open(log_path, "a")
+        ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self._log.write(f"\n{'='*60}\n  Run started: {ts}\n{'='*60}\n")
+        self._log.flush()
+
+    def write(self, msg):
+        self._terminal.write(msg)
+        self._log.write(msg)
+        self._log.flush()
+
+    def flush(self):
+        self._terminal.flush()
+        self._log.flush()
+
+    def close(self):
+        self._log.close()
 
 
 # ─── Slurm helpers ──────────────────────────────────────────────────────────
@@ -312,6 +340,9 @@ def main():
     os.makedirs(RESULTS_DIR, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
 
+    # Tee all print output to a persistent log file
+    sys.stdout = _TeeLogger(RUN_LOG_PATH)
+
     # ── Load initial surrogate ───────────────────────────────────────────
     if os.path.exists(args.model_path):
         print(f"[optimize] Loading existing surrogate from {args.model_path}")
@@ -348,8 +379,8 @@ def main():
         if fname.startswith("summary_") and fname.endswith(".json"):
             with open(os.path.join(RESULTS_DIR, fname)) as f:
                 r = json.load(f)
-            cfg_tuple = tuple(r[role] for role in AGENT_ROLES
-                              if role in r)
+            cfg_tuple = tuple(r[f"{role}_model"] for role in AGENT_ROLES
+                              if f"{role}_model" in r)
             if len(cfg_tuple) == len(AGENT_ROLES) and cfg_tuple not in evaluated_set:
                 evaluated_set.add(cfg_tuple)
                 all_X_raw.append(list(cfg_tuple))
@@ -450,7 +481,7 @@ def main():
         # 5. Append results to accumulated data
         n_new = 0
         for r in iter_results:
-            cfg_tuple = tuple(r.get(role, "") for role in AGENT_ROLES)
+            cfg_tuple = tuple(r.get(f"{role}_model", "") for role in AGENT_ROLES)
             if cfg_tuple not in evaluated_set:
                 evaluated_set.add(cfg_tuple)
                 all_X_raw.append(list(cfg_tuple))
